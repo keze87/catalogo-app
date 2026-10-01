@@ -70,6 +70,7 @@ productos = cliente[DB_NAME]["productos"]
 # aparte, por su propia URL, para que el navegador pueda cachearla.
 SIN_BINARIOS = {"imagen_datos": 0}
 
+print(f"catalogo-api {APP_VERSION} arrancando (base={DB_NAME})")
 
 class ProductoIn(BaseModel):
     sku: int = Field(ge=1, description="Código único del producto")
