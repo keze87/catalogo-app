@@ -1,8 +1,8 @@
 # Informe - Trabajo Práctico N° 1
 
-**Asignatura:** Contenedores, Docker y Orquestación con Kubernetes  
-**Variante:** C - catalogo-app (React + Vite, Python + FastAPI, MongoDB 7)  
-**Alumno:** César Herrera
+**Asignatura:** Contenedores, Docker y Orquestación con Kubernetes
+**Variante:** C - catalogo-app (React + Vite, Python + FastAPI, MongoDB 7)
+**Alumno:** César Ezequiel Herrera
 
 ---
 

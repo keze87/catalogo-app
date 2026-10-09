@@ -17,6 +17,7 @@ ENV API_HOST=catalogo-api \
     NGINX_ENVSUBST_FILTER=^API_
 
 COPY --from=builder /app/dist .
+COPY nginx/templates/default.conf.template /etc/nginx/templates/default.conf.template
 
 EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]
