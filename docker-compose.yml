@@ -1,0 +1,85 @@
+services:
+  catalogo-db:
+    image: mongo:7
+    container_name: catalogo-db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: catalogo_user
+      MONGO_INITDB_ROOT_PASSWORD: catalogo_pass
+    volumes:
+      - catalogo-db-data:/data/db
+    networks:
+      - catalogo-net
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+
+  catalogo-api:
+    build: ./backend
+    image: catalogo-api:v1
+    container_name: catalogo-api
+    environment:
+      DB_HOST: catalogo-db
+      DB_PORT: 27017
+      DB_NAME: catalogodb
+      DB_USER: catalogo_user
+      DB_PASSWORD: catalogo_pass
+      APP_VERSION: v1
+      ROOT_PATH: /api
+      SEED_DEMO: "true"
+    ports:
+      - "8000:8000"
+    networks:
+      - catalogo-net
+    depends_on:
+      catalogo-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    cap_drop:
+      - ALL
+
+  catalogo-frontend:
+    build: ./frontend
+    image: catalogo-frontend:v1
+    container_name: catalogo-frontend
+    environment:
+      API_HOST: catalogo-api
+      API_PORT: 8000
+    ports:
+      - "3000:8080"
+    networks:
+      - catalogo-net
+    depends_on:
+      catalogo-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    cap_drop:
+      - ALL
+
+networks:
+  catalogo-net:
+    name: catalogo-net
+
+volumes:
+  catalogo-db-data:
+    name: catalogo-db-data
