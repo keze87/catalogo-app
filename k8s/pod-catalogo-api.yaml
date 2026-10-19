@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: catalogo-api
+  name: catalogo-api
+spec:
+  containers:
+  - image: keze87/catalogo-api:v1
+    name: catalogo-api
+    ports:
+    - containerPort: 8000
+    env:
+      - name: DB_HOST
+        value: catalogo-db
+      - name: DB_PORT
+        value: "27017"
+      - name: DB_NAME
+        value: catalogodb
+      - name: DB_USER
+        value: catalogo_user
+      - name: DB_PASSWORD
+        value: catalogo_pass
+      - name: APP_VERSION
+        value: v1
+      - name: ROOT_PATH
+        value: /api
+      - name: SEED_DEMO
+        value: "true"
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}

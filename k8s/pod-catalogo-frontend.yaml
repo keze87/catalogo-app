@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: catalogo-frontend
+  name: catalogo-frontend
+spec:
+  containers:
+  - image: keze87/catalogo-frontend:v1
+    imagePullPolicy: Always
+    name: catalogo-frontend
+    ports:
+    - containerPort: 8080
+    env:
+      - name: API_HOST
+        value: catalogo-api
+      - name: API_PORT
+        value: "8000"
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
