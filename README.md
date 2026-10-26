@@ -168,3 +168,35 @@ catalogo-db exited with code 1
 | `catalogo-db` | `mongodb` (UID 999) | Ninguno (sólo interno) | `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETUID`, `SETGID` | 135 |
 | `catalogo-api` | `appuser` (UID 1000) | `8000:8000` *(Solo depuración; será interno)* | Ninguna (`cap_drop: [ALL]`) | 183 |
 | `catalogo-frontend` | `nginx` (UID 101) | `3000:8080` | Ninguna (`cap_drop: [ALL]`) | 159 |
+
+---
+
+## Kubernetes
+
+### Comparativa causa `host not found in upstream`: Semana 3 vs Semana 5
+
+* Semana 3 (Docker CLI): El error ocurrió porque el contenedor se inició fuera de la red `catalogo-net` (omisión del parámetro `--network`), quedando en la red bridge por defecto donde Docker no habilita la resolución DNS embebida.
+
+* Semana 5 (Kubernetes): El Pod se encuentra dentro de la red del clúster, pero la resolución de nombres hacia otros componentes solo se produce si existe un objeto `Service` registrado. Al existir únicamente el Pod `catalogo-api` sin un Service que lo exponga, CoreDNS responde que el host no existe y Nginx aborta el arranque.
+
+## Cheatsheet de Comandos `kubectl` Utilizados
+
+1. `kubectl config current-context`: Informa el clúster y las credenciales activas en la configuración local de `kubeconfig` antes de interactuar.
+
+2. `kubectl create namespace <nombre>`: Da de alta un nuevo espacio de nombres para aislar lógicamente los recursos del proyecto.
+
+3. `kubectl config set-context --current --namespace=<nombre>`: Establece el namespace por defecto para el contexto en uso, omitiendo la necesidad del parámetro `-n` en llamadas posteriores.
+
+4. `kubectl run <nombre> --image=<imagen> --dry-run=client -o yaml`: Simula la ejecución de un contenedor y genera el manifiesto declarativo YAML estándar en la salida sin aplicar cambios en el clúster.
+
+5. `kubectl apply -f <archivo.yaml>`: Aplica de forma declarativa la configuración de los recursos descritos en el archivo manifiesto.
+
+6. `kubectl get pods -o wide`: Lista los Pods del namespace brindando detalles extendidos: IP asignada dentro del clúster y nodo físico en el que corren.
+
+7. `kubectl describe pod <nombre>`: Muestra el detalle exhaustivo del recurso, incluyendo condiciones de estado, contenedores y la lista cronológica de eventos del kubelet.
+
+8. `kubectl logs <nombre> --previous`: Obtiene los registros de la consola del contenedor que finalizó en la ejecución inmediatamente anterior para diagnosticar fallas de arranque o excepciones.
+
+9. `kubectl port-forward pod/<nombre> <puerto_local>:<puerto_pod>`: Crea un túnel TCP directo desde la máquina local hacia un puerto interno específico de un Pod sin exponerlo en la red del clúster.
+
+10. `kubectl delete pod <nombre>`: Detiene y elimina definitivamente una instancia de Pod dentro del namespace.
