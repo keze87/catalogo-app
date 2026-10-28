@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogo-api
+  namespace: catalogo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: catalogo-api
+  template:
+    metadata:
+      labels:
+        app: catalogo-api
+    spec:
+      containers:
+        - name: catalogo-api
+          image: keze87/catalogo-api:v1
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DB_HOST
+              value: catalogo-db
+            - name: DB_PORT
+              value: "27017"
+            - name: DB_NAME
+              value: catalogodb
+            - name: DB_USER
+              value: catalogo_user
+            - name: DB_PASSWORD
+              value: catalogo_pass
+            - name: ROOT_PATH
+              value: /api
+            - name: SEED_DEMO
+              value: "true"

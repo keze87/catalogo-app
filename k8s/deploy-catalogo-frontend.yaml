@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogo-frontend
+  namespace: catalogo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: catalogo-frontend
+  template:
+    metadata:
+      labels:
+        app: catalogo-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: keze87/catalogo-frontend:v1
+          ports:
+            - containerPort: 8080
+          env:
+            - name: API_HOST
+              value: catalogo-api
+            - name: API_PORT
+              value: "8000"

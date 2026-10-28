@@ -200,3 +200,59 @@ catalogo-db exited with code 1
 9. `kubectl port-forward pod/<nombre> <puerto_local>:<puerto_pod>`: Crea un túnel TCP directo desde la máquina local hacia un puerto interno específico de un Pod sin exponerlo en la red del clúster.
 
 10. `kubectl delete pod <nombre>`: Detiene y elimina definitivamente una instancia de Pod dentro del namespace.
+
+---
+
+## Verificación de Selectors y Endpoints
+
+Comando de verificación ejecutado:
+
+```bash
+kubectl get endpoints -n catalogo-app
+```
+
+**Salida registrada:**
+
+```text
+NAME                     ENDPOINTS                               AGE
+catalogo-api             10.244.0.27:8000,10.244.0.28:8000       5m
+catalogo-db              10.244.0.26:27017                       5m
+catalogo-frontend        10.244.0.24:8080,10.244.0.29:8080       5m
+```
+
+* **Análisis:** La correspondencia entre el campo `spec.selector` de cada Service y `metadata.labels` de las plantillas de los Deployments vincula dinámicamente las direcciones IP efímeras de las réplicas en ejecución. Si hubiese discrepancia en las etiquetas, la columna `ENDPOINTS` mostraría `<none>`.
+
+## Service NodePort de Depuración (`catalogo-api-nodeport`)
+
+Para verificar el backend directamente sin la intermediación de Nginx, se definió un Service auxiliar en el puerto 30502:
+
+```bash
+curl -s http://<IP-del-nodo>:30502/health
+# {"status":"ok","db":"ok","version":"v1"}
+```
+
+> **Aclaración explícita:** El objeto `catalogo-api-nodeport` fue creado con propósitos exclusivos de depuración y prueba para este práctico. **No formará parte del chart de Helm de la Semana 8**, donde el backend permanecerá exclusivamente accesible de forma interna a través de su Service `ClusterIP`.
+
+## Limitación Conocida: Persistencia en la Base de Datos
+
+### Comprobación de pérdida de datos
+
+1. Se forzó la eliminación del Pod de la base de datos:
+
+```bash
+kubectl delete pod -l app=catalogo-db -n catalogo-app
+```
+
+
+2. Al recrearse el Pod, la consulta a `/productos` devolvió un array vacío (`[]`). El producto cargado manualmente en el Punto 3 se perdió de forma definitiva.
+3. Se reinició el Deployment de la API para disparar la rutina de siembra:
+
+```bash
+kubectl rollout restart deployment/catalogo-api -n catalogo-app
+```
+
+4. Al reiniciar la API, reaparecieron únicamente los 12 productos de demostración (`SEED_DEMO=true`), pero no el producto manual.
+
+### Declaración de limitación
+
+El objeto `catalogo-db` opera actualmente como un `Deployment` respaldado únicamente por el almacenamiento efímero del nodo. **Esta constituye una limitación conocida y explícita del TP6**, la cual será subsanada en la Semana 7 mediante la desacoplación del almacenamiento con `PersistentVolume` (PV) y `PersistentVolumeClaim` (PVC).

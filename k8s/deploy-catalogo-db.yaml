@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogo-db
+  namespace: catalogo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalogo-db
+  template:
+    metadata:
+      labels:
+        app: catalogo-db
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:7
+          ports:
+            - containerPort: 27017
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: catalogo_user
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              value: catalogo_pass
