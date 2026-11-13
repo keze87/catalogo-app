@@ -80,9 +80,113 @@ catalogo_pass
 
 ## 3. Refactorización de Deployments y Verificación de Variables
 
-Se actualizaron los tres `Deployments` para consumir los objetos externos mediante `envFrom` y `valueFrom.secretKeyRef`, renombrando las claves del Secret (`MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD`) hacia los nombres que espera la API (`DB_USER` y `DB_PASSWORD`).
+Se actualizaron los tres `Deployments` para consumir los objetos externos mediante `envFrom` y `valueFrom.secretKeyRef`, renombrando las claves del Secret (`MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD`) hacia los nombres que espera la API (`DB_USER` y `DB_PASSWORD`), sin dejar ningún valor literal en los manifiestos.
 
-### Verificación efectiva dentro de los contenedores
+### a) `k8s/deploy-catalogo-db.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogo-db
+  namespace: catalogo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalogo-db
+  template:
+    metadata:
+      labels:
+        app: catalogo-db
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:7
+          ports:
+            - containerPort: 27017
+          envFrom:
+            - secretRef:
+                name: catalogo-db-secret
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+      volumes:
+        - name: mongo-data
+          persistentVolumeClaim:
+            claimName: catalogo-db-pvc
+```
+
+### b) `k8s/deploy-catalogo-api.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogo-api
+  namespace: catalogo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: catalogo-api
+  template:
+    metadata:
+      labels:
+        app: catalogo-api
+    spec:
+      containers:
+        - name: catalogo-api
+          image: keze87/catalogo-api:v1
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: catalogo-api-config
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: catalogo-db-secret
+                  key: MONGO_INITDB_ROOT_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: catalogo-db-secret
+                  key: MONGO_INITDB_ROOT_PASSWORD
+```
+
+### c) `k8s/deploy-catalogo-frontend.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogo-frontend
+  namespace: catalogo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: catalogo-frontend
+  template:
+    metadata:
+      labels:
+        app: catalogo-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: keze87/catalogo-frontend:v1
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: catalogo-frontend-config
+```
+
+### d) Verificación efectiva dentro de los contenedores
+
+*(Nota: si a la API no le llegan `DB_USER` o `DB_PASSWORD`, utiliza valores por omisión que coinciden con Docker Compose y la aplicación sigue respondiendo igual; por eso inspeccionar `env` dentro de cada contenedor es la única verificación válida).*
 
 ```bash
 # Variables en el contenedor de la API
@@ -191,7 +295,7 @@ kubectl delete pod -l app=catalogo-db -n catalogo-app
 kubectl get pods -n catalogo-app -w
 ```
 
-1. Se consultó el catálogo tras la recuperación del Pod:
+3. Se consultó el catálogo tras la recuperación del Pod:
 
 ```bash
 curl -s http://172.16.21.17:30302/api/productos | head -c 300; echo
@@ -203,7 +307,7 @@ curl -s http://172.16.21.17:30302/api/productos | head -c 300; echo
 [{"sku":1,"nombre":"11","precio":1.0,"categoria":"General","stock":1,"descripcion":"11","imagen_tipo":"image/jpeg","imagen_hash":"c9e1c99c01d2d401","creado_en":"2026-11-13T18:06:10.764000","id":"6af75192d5e423664919b5df","imagen":true}]
 ```
 
-* La supervivencia del **producto cargado manualmente con su imagen** demuestra que los datos persisten en el `PersistentVolume`, cerrando definitivamente la limitación declarada en el TP6.
+* **Falso positivo del catálogo de demostración:** Los productos de ejemplo (`SEED_DEMO=true`) se siembran de manera idempotente cada vez que arranca la API, por lo que reaparecen siempre aunque los datos se hayan perdido. La supervivencia del **producto cargado manualmente con su imagen** es la prueba válida de que los datos persisten en el `PersistentVolume`, cerrando definitivamente la limitación declarada en el TP6.
 
 ---
 

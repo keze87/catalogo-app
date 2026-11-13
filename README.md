@@ -256,3 +256,51 @@ kubectl rollout restart deployment/catalogo-api -n catalogo-app
 ### Declaración de limitación
 
 El objeto `catalogo-db` opera actualmente como un `Deployment` respaldado únicamente por el almacenamiento efímero del nodo. **Esta constituye una limitación conocida y explícita del TP6**, la cual será subsanada en la Semana 7 mediante la desacoplación del almacenamiento con `PersistentVolume` (PV) y `PersistentVolumeClaim` (PVC).
+
+---
+
+## Configuración Externalizada, Persistencia e Ingress (TP7)
+
+### Externalización de Configuración (`ConfigMap` y `Secret`)
+
+Ningún valor de configuración o credencial permanece escrito literalmente en los manifiestos de `Deployment`:
+
+* **`catalogo-api-config` (`ConfigMap`):** Define `DB_HOST`, `DB_PORT`, `DB_NAME`, `ROOT_PATH` (`/api`) y `SEED_DEMO` (`"true"`). No incluye `APP_VERSION`, ya que esa variable viene fijada en la imagen durante el `docker build`.
+* **`catalogo-frontend-config` (`ConfigMap`):** Define `API_HOST` y `API_PORT`.
+* **`catalogo-db-secret` (`Secret`):** Almacena `MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD`. Se reutiliza tanto en MongoDB (`envFrom`) como en FastAPI mediante mapeo con `valueFrom.secretKeyRef` hacia `DB_USER` y `DB_PASSWORD`.
+  * **Seguridad:** Los `Secret` estándar de Kubernetes codifican sus valores en Base64 (reversible, no cifrado). Para proteger credenciales en reposo se requiere habilitar *Encryption at Rest* en `etcd` o utilizar un gestor de secretos externo (HashiCorp Vault, Sealed Secrets, External Secrets Operator).
+
+### Decisión Arquitectónica: Cadena de Conexión a MongoDB
+
+Se optó por entregar las **piezas por separado** (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`) en lugar de una única variable `MONGO_URI`:
+
+1. **Reutilización sin duplicación:** Un único `Secret` (`catalogo-db-secret`) alimenta tanto a MongoDB oficial (`MONGO_INITDB_ROOT_*`) como a FastAPI.
+2. **Autenticación automática:** FastAPI ensambla la URI internamente y anexa `?authSource=admin` por sí misma, evitando errores `Authentication failed` por omisión manual.
+
+### Persistencia de Datos (`catalogo-db-pvc`)
+
+Se resolvió la limitación declarada en el TP6 incorporando `catalogo-db-pvc` (`1Gi`, `ReadWriteOnce`, StorageClass por defecto) montado en `/data/db`:
+
+* **Ausencia de `subPath`:** A diferencia de MySQL, MongoDB tolera que `/data/db` contenga subdirectorios iniciales (como `lost+found`), por lo que no requiere `subPath`.
+* **Comprobación válida:** La siembra del catálogo de demostración (`SEED_DEMO=true`) es idempotente y se ejecuta cada vez que arranca la API, por lo que su reaparición tras recrear el Pod constituye un falso positivo. La persistencia efectiva se verificó cargando manualmente un producto con imagen y comprobando su supervivencia tras eliminar el Pod de `catalogo-db`.
+
+### Exposición mediante Ingress (`catalogo-app-ingress`)
+
+* **Regla única (`/`) hacia `catalogo-frontend:8080` bajo `catalogo.local`:** No se agrega una regla `/api` en el `Ingress` porque el Nginx interno del frontend ya realiza el proxy inverso hacia `catalogo-api:8000`; duplicar la regla crearía dos fuentes de verdad y rompería la paridad con Docker Compose.
+* **Verificación válida vs. falso positivo SPA:** La ruta `/productos` devuelve `200 OK` con el `index.html` de React por la directiva `try_files $uri $uri/ /index.html;`. La verificación real del backend a través del Ingress se realiza sobre `/api/productos` (JSON) y `/api/docs` (Swagger UI, confirmando la llegada de `ROOT_PATH=/api`).
+
+### Inventario de Objetos en el Clúster (11 de 12)
+
+| # | Nombre del Objeto | Tipo (`Kind`) | Función |
+| --- | --- | --- | --- |
+| 1 | `catalogo-db` | `Deployment` | Gestiona la réplica única de MongoDB 7 con almacenamiento persistente. |
+| 2 | `catalogo-api` | `Deployment` | Mantiene las réplicas sin estado del backend FastAPI. |
+| 3 | `catalogo-frontend` | `Deployment` | Administra las réplicas de Nginx con el build estático de React y proxy `/api`. |
+| 4 | `catalogo-db` | `Service` (`ClusterIP`) | Provee resolución DNS interna en el puerto `27017` hacia MongoDB. |
+| 5 | `catalogo-api` | `Service` (`ClusterIP`) | Balancea internamente las peticiones HTTP en el puerto `8000` hacia la API. |
+| 6 | `catalogo-frontend` | `Service` (`NodePort`) | Expone el frontend en el puerto `30302` de los nodos y recibe tráfico del Ingress. |
+| 7 | `catalogo-api-config` | `ConfigMap` | Externaliza los parámetros no sensibles del backend. |
+| 8 | `catalogo-frontend-config` | `ConfigMap` | Externaliza el host y puerto de destino de la API para Nginx. |
+| 9 | `catalogo-db-secret` | `Secret` | Almacena las credenciales de administrador de MongoDB. |
+| 10 | `catalogo-db-pvc` | `PersistentVolumeClaim` | Solicita `1Gi` (`ReadWriteOnce`) para persistir `/data/db`. |
+| 11 | `catalogo-app-ingress` | `Ingress` | Enruta el tráfico HTTP de `catalogo.local` (puerto 80) hacia `catalogo-frontend`. |

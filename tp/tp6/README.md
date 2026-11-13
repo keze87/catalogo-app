@@ -21,7 +21,7 @@ kubectl config current-context
 kubectl get nodes -o wide
 ```
 
-* **IP del Nodo (`INTERNAL-IP`):** `[Registrar aquí la IP del nodo, ej: 172.16.21.17]`
+* **IP del Nodo (`INTERNAL-IP`):** `172.16.21.17`
 
 ---
 

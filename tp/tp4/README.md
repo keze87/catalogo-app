@@ -97,7 +97,7 @@ services:
       catalogo-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('[http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -120,7 +120,7 @@ services:
       catalogo-api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "[http://127.0.0.1:8080/healthz](http://127.0.0.1:8080/healthz)"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -173,7 +173,7 @@ Nginx evalúa los nombres de host declarados en su directiva `proxy_pass` al mom
 
 ---
 
-## 4. Despliegue y Verificación de Estado
+## 6. Despliegue y Verificación de Estado
 
 ### a) Validación de sintaxis (`docker compose config`)
 
@@ -392,7 +392,7 @@ catalogo-api  | INFO:     127.0.0.1:52006 - "GET /health HTTP/1.1" 200 OK
 
 ---
 
-## 5. Ciclo de Vida del Dato y Persistencia
+## 7. Ciclo de Vida del Dato y Persistencia
 
 ### Comprobación de reinicio con preservación de volumen (`docker compose down`)
 
@@ -441,7 +441,7 @@ curl -s http://localhost:3000/api/productos | jq -c 'map({sku, nombre})'
 
 ---
 
-## 6. Verificación de Idempotencia en la Siembra de Datos
+## 8. Verificación de Idempotencia en la Siembra de Datos
 
 Comandos ejecutados:
 
@@ -476,7 +476,7 @@ La siembra de datos implementa una operación de tipo *upsert* basada en el nomb
 
 ---
 
-## 7. Auditoría de Seguridad y Mínimo Privilegio
+## 9. Auditoría de Seguridad y Mínimo Privilegio
 
 ### a) Verificación de identidades de usuario runtime
 
@@ -521,7 +521,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image
 
 ---
 
-## 8. Principio de Mínimo Privilegio y Capabilities (`cap_drop` / `cap_add`)
+## 10. Principio de Mínimo Privilegio y Capabilities (`cap_drop` / `cap_add`)
 
 ### Remoción global de capacidades (`cap_drop: [ALL]`)
 
@@ -568,7 +568,7 @@ El proceso inicial del contenedor oficial `mongo:7` arranca bajo la cuenta `root
 
 ---
 
-## 9. Comparativa: Docker CLI (`docker run`) vs Docker Compose
+## 11. Comparativa: Docker CLI (`docker run`) vs Docker Compose
 
 | Criterio | Ejecución Manual CLI | Declarativo Docker Compose |
 | --- | --- | --- |

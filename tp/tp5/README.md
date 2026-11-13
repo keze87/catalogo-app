@@ -183,8 +183,8 @@ apiVersion: v1
 kind: Pod
 metadata:
   labels:
-    run: catalogo-api
-  name: catalogo-api
+    run: catalogo-frontend
+  name: catalogo-frontend
 spec:
   containers:
   - image: keze87/catalogo-frontend:v1

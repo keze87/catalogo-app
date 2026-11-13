@@ -89,7 +89,7 @@ local    8.00 KiB
 
 ### c) Análisis de riesgo
 
-Esta condición es significativamente más riesgosa que una falla explícita porque produce silenciosa de seguridad. Si el contenedor fallara al iniciar sin contraseñas obligaría al administrador a corregir la configuración antes de desplegar, al permanecer activo sin advertencias evidentes, deja el motor expuesto a accesos no autorizados y filtración de datos.
+Esta condición es significativamente más riesgosa que una falla explícita porque produce una falla silenciosa de seguridad. Si el contenedor fallara al iniciar sin contraseñas obligaría al administrador a corregir la configuración antes de desplegar, al permanecer activo sin advertencias evidentes, deja el motor expuesto a accesos no autorizados y filtración de datos.
 
 ---
 
