@@ -18,8 +18,6 @@ spec:
           image: keze87/catalogo-frontend:v1
           ports:
             - containerPort: 8080
-          env:
-            - name: API_HOST
-              value: catalogo-api
-            - name: API_PORT
-              value: "8000"
+          envFrom:
+            - configMapRef:
+                name: catalogo-frontend-config

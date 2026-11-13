@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: catalogo-app-ingress
+  namespace: catalogo-app
+spec:
+  rules:
+    - host: catalogo.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: catalogo-frontend
+                port:
+                  number: 8080
