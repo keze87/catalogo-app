@@ -1,3 +1,102 @@
+# catalogo-app — Proyecto Final (Variante C)
+
+Aplicación de catálogo de productos con imágenes compuesta por tres capas (**React + Vite servido por Nginx · Python + FastAPI · MongoDB 7**), contenerizada con builds multietapa, orquestada localmente con Docker Compose y desplegada en Kubernetes mediante manifiestos individuales y un chart de Helm parametrizado.
+
+## Artefactos del repositorio
+
+| Artefacto | Ubicación | Descripción |
+| --- | --- | --- |
+| Dockerfiles multietapa | `backend/Dockerfile`, `frontend/Dockerfile` | Imágenes optimizadas sin herramientas de compilación y configuración en tiempo de ejecución. |
+| Orquestación local | `docker-compose.yml` | Las tres capas con red aislada `catalogo-net`, volumen persistente y healthchecks. |
+| Manifiestos de Kubernetes | `k8s/` | Los **12 objetos** exactos de la arquitectura en archivos individuales. |
+| Chart de Helm | `catalogo-app/` | `Chart.yaml`, `values.yaml` y las 12 plantillas parametrizadas. |
+| Documento de arquitectura | [`ARQUITECTURA.md`](ARQUITECTURA.md) | Respuestas a las preguntas obligatorias y de la Variante C. |
+| Informe de funcionamiento | [`INFORME.md`](INFORME.md) | Evidencia del despliegue funcionando, HPA, Helm y aislamiento de Pods. |
+| Guías paso a paso | [`tp/`](tp/) | Paso a paso de los trabajos prácticos semanales (`tp1` a `tp8`). |
+
+> [!NOTE]
+> **Credenciales de laboratorio:** Los archivos `docker-compose.yml`, `k8s/secret-catalogo-db.yaml` y `catalogo-app/values.yaml` incluyen credenciales de laboratorio (`catalogo_user` / `catalogo_pass`) únicamente con fines académicos y de reproducibilidad. En un entorno de producción real nunca deben versionarse credenciales en el repositorio; el enfoque recomendado se detalla en [`ARQUITECTURA.md`](ARQUITECTURA.md#4-qué-quedaría-pendiente-para-un-entorno-de-producción-real).
+
+## Cómo levantar el proyecto
+
+### Camino 1: Docker Compose (en una sola máquina)
+
+Requisitos: Docker Engine y Docker Compose v2.
+
+```bash
+# 1. Construir las imágenes y levantar las tres capas en segundo plano
+docker compose up -d --build
+
+# 2. Verificar que los tres contenedores estén en estado healthy
+docker compose ps
+
+# 3. Comprobar la API a través del proxy del frontend
+curl -s http://localhost:3000/api/health
+# {"status":"ok","db":"ok","version":"v1"}
+```
+
+Abrir en el navegador:
+- **Aplicación web:** `http://localhost:3000`
+- **Documentación interactiva (Swagger UI):** `http://localhost:3000/api/docs`
+
+Para detener el entorno:
+```bash
+# Detener conservando los datos de MongoDB (volumen catalogo-db-data)
+docker compose down
+
+# Detener y eliminar también el volumen persistente
+docker compose down -v
+```
+
+### Camino 2: Helm sobre el clúster Kubernetes
+
+Requisitos: `kubectl` configurado contra el clúster (con `nginx-ingress-controller` y `metrics-server` activos) y Helm v3.
+
+```bash
+# 1. Validar sintaxis del chart y confirmar que renderiza exactamente 12 objetos
+helm lint ./catalogo-app
+helm template catalogo-app ./catalogo-app | grep -c "^kind:"
+
+# 2. Instalar la release en el namespace catalogo-app
+helm install catalogo-app ./catalogo-app -n catalogo-app --create-namespace
+
+# 3. Verificar los 12 objetos desplegados
+kubectl get all,cm,secret,pvc,ingress,hpa -n catalogo-app
+```
+
+Configurar la resolución local del host `catalogo.local` apuntando a la `EXTERNAL-IP` del Ingress Controller:
+
+```bash
+INGRESS_IP=$(kubectl get svc -n nginx-ingress nginx-ingress-controller \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo "$INGRESS_IP catalogo.local" | sudo tee -a /etc/hosts
+
+# Verificar respuesta a través del Ingress
+curl -s http://catalogo.local/api/health
+```
+
+Abrir en el navegador:
+- **Aplicación web:** `http://catalogo.local`
+- **Documentación interactiva (Swagger UI):** `http://catalogo.local/api/docs`
+
+Ciclo de vida de la release con Helm:
+
+```bash
+# Actualizar la versión de la API a v2
+helm upgrade catalogo-app ./catalogo-app -n catalogo-app --set api.image.tag=v2
+
+# Consultar historial y revertir a la revisión 1
+helm history catalogo-app -n catalogo-app
+helm rollback catalogo-app 1 -n catalogo-app
+
+# Desinstalar la release completa
+helm uninstall catalogo-app -n catalogo-app
+```
+
+*(Alternativamente, los 12 manifiestos planos pueden aplicarse de forma individual desde `k8s/` mediante `kubectl create namespace catalogo-app && kubectl apply -f k8s/`.)*
+
+---
+
 # Arquitectura
 
 ```text
@@ -22,10 +121,10 @@ El frontend es el único punto de entrada: nadie le habla a la base directamente
 
 El usuario administrador inicial (`catalogo_user`), configurado mediante las variables de entorno `MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD` de la imagen oficial `mongo:7`, reside físicamente en la base de datos de autenticación del sistema: `admin`.
 
-Al construir la cadena de conexión hacia la base propia de la aplicación (`catalogo`), es **obligatorio** especificar el parámetro de consulta `?authSource=admin`:
+Al construir la cadena de conexión hacia la base propia de la aplicación (`catalogodb`), es **obligatorio** especificar el parámetro de consulta `?authSource=admin`:
 
 ```text
-mongodb://catalogo_user:catalogo_pass@<host>:27017/catalogo?authSource=admin
+mongodb://catalogo_user:catalogo_pass@<host>:27017/catalogodb?authSource=admin
 ```
 
 ## Configuración de Contenedores e Imágenes
@@ -97,7 +196,7 @@ docker run -d \
 
 **Lo que desapareció:** La necesidad de ejecutar comandos en un orden estricto, los retardos manuales entre contenedores, la creación imperativa de la red `catalogo-net` y los parámetros extensos por línea de comandos.
 
-**Lo que apareció:** El archivo `docker-compose.yml`, los sondeos de salud integrados (`healthcheck`), las relaciones de dependencia explícitas con estado saludable (`condition: service_healthy`), el contrato unificado de variables mediante `.env` / `.env.example` y la restricción declarativa de capacidades del kernel Linux.
+**Lo que apareció:** El archivo `docker-compose.yml`, los sondeos de salud integrados (`healthcheck`), las relaciones de dependencia explícitas con estado saludable (`condition: service_healthy`), la declaración centralizada de variables de entorno en cada servicio (con `.env.example` como referencia de contrato) y la restricción declarativa de capacidades del kernel Linux.
 
 ### Sondeos de Salud (Healthchecks)
 
@@ -105,7 +204,7 @@ docker run -d \
 
 * **Comando:** `mongosh --quiet --eval "db.adminCommand('ping').ok" || exit 1`
 * **Ventaja frente a autenticación explícita:** El comando `ping` no requiere credenciales en MongoDB. Esto evita que la contraseña viaje en la definición del comando o quede expuesta en las herramientas de inspección (`docker inspect` o `ps`).
-* **Limitaciones y lo que NO verifica:** Un estado `healthy` solo confirma que la instancia de MongoDB está activa y respondiendo a comandos de red básicos. **No prueba** que el usuario `catalogo_user` haya sido creado ni que la contraseña configurada sea correcta. Si el volumen `catalogo-db-data` ya fue inicializado previamente con otras credenciales y se cambia la clave en el `.env`, la base estará `healthy`, pero la API fallará con `Authentication failed`.
+* **Limitaciones y lo que NO verifica:** Un estado `healthy` solo confirma que la instancia de MongoDB está activa y respondiendo a comandos de red básicos. **No prueba** que el usuario `catalogo_user` haya sido creado ni que la contraseña configurada sea correcta. Si el volumen `catalogo-db-data` ya fue inicializado previamente con otras credenciales y se cambia la clave en `docker-compose.yml`, la base estará `healthy`, pero la API fallará con `Authentication failed`.
 
 #### `catalogo-api` (Python / FastAPI)
 
@@ -135,7 +234,7 @@ Sin `depends_on`, el frontend iniciaría en paralelo a la API. Al arrancar Nginx
 
 #### Idempotencia en la Siembra de Datos
 
-La siembra del catálogo se implementó mediante una operación de actualización con inserción (*upsert*) basada en el nombre del producto. Al ejecutar `docker compose up -d --force-recreate catalogo-api`, el proceso de siembra se re-ejecuta sin duplicar registros. Esta idempotencia es una precondición indispensable para cuando réplicas simultáneas de la API iniciarán en paralelo y ejecutarán la siembra concurrentemente.
+La siembra del catálogo se implementó mediante una operación de actualización con inserción (*upsert*) basada en el `sku` único del producto. Al ejecutar `docker compose up -d --force-recreate catalogo-api`, el proceso de siembra se re-ejecuta sin duplicar registros. Esta idempotencia es una precondición indispensable para cuando réplicas simultáneas de la API iniciarán en paralelo y ejecutarán la siembra concurrentemente.
 
 ### Auditoría de Seguridad y Mínimo Privilegio
 
