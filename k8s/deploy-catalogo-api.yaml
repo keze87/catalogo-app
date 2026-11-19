@@ -18,6 +18,13 @@ spec:
           image: keze87/catalogo-api:v1
           ports:
             - containerPort: 8000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
           envFrom:
             - configMapRef:
                 name: catalogo-api-config

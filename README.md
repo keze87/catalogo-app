@@ -304,3 +304,51 @@ Se resolvió la limitación declarada en el TP6 incorporando `catalogo-db-pvc` (
 | 9 | `catalogo-db-secret` | `Secret` | Almacena las credenciales de administrador de MongoDB. |
 | 10 | `catalogo-db-pvc` | `PersistentVolumeClaim` | Solicita `1Gi` (`ReadWriteOnce`) para persistir `/data/db`. |
 | 11 | `catalogo-app-ingress` | `Ingress` | Enruta el tráfico HTTP de `catalogo.local` (puerto 80) hacia `catalogo-frontend`. |
+
+---
+
+## Autoescalado Horizontal y Empaquetado con Helm (TP8)
+
+### Autoescalado de la API (`catalogo-api-hpa`)
+
+* **Declaración de recursos en `catalogo-api`:** `resources.requests` (`cpu: 100m`, `memory: 128Mi`) y `limits` (`cpu: 300m`, `memory: 256Mi`). El `HorizontalPodAutoscaler` calcula el porcentaje de uso dividiendo el consumo reportado por `metrics-server` sobre `requests.cpu`.
+* **Configuración del HPA:** `minReplicas: 2`, `maxReplicas: 6`, objetivo `averageUtilization: 50` sobre CPU.
+* **HPA único en la arquitectura:**
+  * `catalogo-db` (MongoDB) no se escala horizontalmente mediante un `Deployment` porque cada réplica requeriría su propio almacenamiento sin *replica set* configurado.
+  * `catalogo-frontend` (Nginx) sirve estáticos y actúa como reverse proxy ligero; la carga de cómputo y lectura/entrega de imágenes recae sobre `catalogo-api` (*stateless*).
+* **Transición de 1 a 3 réplicas (*stateless*):** Al balancear múltiples réplicas de la API, deja de estar garantizada la afinidad con el sistema de archivos local o la memoria RAM de un Pod individual; por ello todo el estado (incluidas las imágenes binarias) reside en MongoDB sobre su `PersistentVolumeClaim`.
+
+### Despliegue con Helm (`catalogo-app/`)
+
+El proyecto consolida los **12 objetos exactos** en el chart `./catalogo-app` (excluyendo `catalogo-api-nodeport`, usado solo para depuración en el TP6), parametrizando en `values.yaml` imágenes/tags, réplicas, recursos, umbrales del HPA, almacenamiento y host del Ingress:
+
+```bash
+# Validar sintaxis y renderizado (12 objetos)
+helm lint ./catalogo-app
+helm template catalogo-app ./catalogo-app | grep -c "^kind:"
+
+# Instalar release
+helm install catalogo-app ./catalogo-app -n catalogo-app --create-namespace
+
+# Actualizar versión de la API y revertir si es necesario
+helm upgrade catalogo-app ./catalogo-app -n catalogo-app --set api.image.tag=v2
+helm history catalogo-app -n catalogo-app
+helm rollback catalogo-app 1 -n catalogo-app
+```
+
+### Inventario Final de Objetos en el Clúster (12 de 12)
+
+| # | Nombre del Objeto | Tipo (`Kind`) | Función |
+| --- | --- | --- | --- |
+| 1 | `catalogo-db` | `Deployment` | Gestiona la réplica única de MongoDB 7 con almacenamiento persistente. |
+| 2 | `catalogo-api` | `Deployment` | Mantiene las réplicas sin estado del backend FastAPI con `resources.requests`. |
+| 3 | `catalogo-frontend` | `Deployment` | Administra las réplicas de Nginx con el build estático de React y proxy `/api`. |
+| 4 | `catalogo-db` | `Service` (`ClusterIP`) | Provee resolución DNS interna en el puerto `27017` hacia MongoDB. |
+| 5 | `catalogo-api` | `Service` (`ClusterIP`) | Balancea internamente las peticiones HTTP en el puerto `8000` hacia la API. |
+| 6 | `catalogo-frontend` | `Service` (`NodePort`) | Expone el frontend en el puerto `30302` de los nodos y recibe tráfico del Ingress. |
+| 7 | `catalogo-api-config` | `ConfigMap` | Externaliza los parámetros no sensibles del backend. |
+| 8 | `catalogo-frontend-config` | `ConfigMap` | Externaliza el host y puerto de destino de la API para Nginx. |
+| 9 | `catalogo-db-secret` | `Secret` | Almacena las credenciales de administrador de MongoDB. |
+| 10 | `catalogo-db-pvc` | `PersistentVolumeClaim` | Solicita `1Gi` (`ReadWriteOnce`) para persistir `/data/db`. |
+| 11 | `catalogo-app-ingress` | `Ingress` | Enruta el tráfico HTTP de `catalogo.local` (puerto 80) hacia `catalogo-frontend`. |
+| 12 | `catalogo-api-hpa` | `HorizontalPodAutoscaler` | Escala `catalogo-api` entre 2 y 6 réplicas según utilización de CPU (50%). |

@@ -1,0 +1,59 @@
+frontend:
+  replicas: 2
+  image:
+    repository: keze87/catalogo-frontend
+    tag: "v1"
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 8080
+    nodePort: 30302
+  config:
+    apiHost: "catalogo-api"
+    apiPort: "8000"
+
+api:
+  replicas: 2
+  image:
+    repository: keze87/catalogo-api
+    tag: "v1"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  config:
+    dbHost: "catalogo-db"
+    dbPort: "27017"
+    dbName: "catalogodb"
+    rootPath: "/api"
+    seedDemo: "true"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+  hpa:
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 50
+
+db:
+  replicas: 1
+  image:
+    repository: mongo
+    tag: "7"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 27017
+  auth:
+    username: "catalogo_user"
+    password: "catalogo_pass"
+  persistence:
+    size: 1Gi
+    accessMode: ReadWriteOnce
+
+ingress:
+  host: "catalogo.local"

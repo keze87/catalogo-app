@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalogo-api-config
+  namespace: {{ .Release.Namespace }}
+data:
+  DB_HOST: {{ .Values.api.config.dbHost | quote }}
+  DB_PORT: {{ .Values.api.config.dbPort | quote }}
+  DB_NAME: {{ .Values.api.config.dbName | quote }}
+  ROOT_PATH: {{ .Values.api.config.rootPath | quote }}
+  SEED_DEMO: {{ .Values.api.config.seedDemo | quote }}
